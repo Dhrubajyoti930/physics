@@ -11,6 +11,7 @@
             --accent: #00f2fe;
             --res-color: #00ff88;
             --clash-color: #ff3e3e;
+            --pink-wave: #ff00ff;
         }
 
         body { 
@@ -57,8 +58,6 @@
 
         @media (max-width: 768px) {
             .controls { grid-template-columns: 1fr; }
-            h2 { font-size: 1.2rem; text-align: center; }
-            input[type=range] { height: 25px; }
         }
 
         .panel { 
@@ -131,6 +130,26 @@
         freezeBtn.style.color = isFrozen ? "#000" : "#fff";
     };
 
+    function drawSpeaker(x, y) {
+        ctx.fillStyle = "#444";
+        ctx.beginPath();
+        ctx.rect(x - 30, y - 15, 15, 30); // Back box
+        ctx.moveTo(x - 15, y - 15);
+        ctx.lineTo(x, y - 30);
+        ctx.lineTo(x, y + 30);
+        ctx.lineTo(x - 15, y + 15);
+        ctx.fill();
+        
+        // Sound waves icon
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 2;
+        for(let i=1; i<=3; i++) {
+            ctx.beginPath();
+            ctx.arc(x + 5, y, i * 8, -Math.PI/3, Math.PI/3);
+            ctx.stroke();
+        }
+    }
+
     function drawAmplitudeScale(x, centerY, height) {
         ctx.strokeStyle = "#444";
         ctx.fillStyle = "#888";
@@ -138,15 +157,12 @@
         ctx.font = "10px monospace";
         ctx.textAlign = "right";
 
-        // Vertical Line
         ctx.beginPath();
         ctx.moveTo(x, centerY - height);
         ctx.lineTo(x, centerY + height);
         ctx.stroke();
 
-        // Ticks and Labels
-        const points = [{v: "1", y: -height}, {v: "0", y: 0}, {v: "-1", y: height}];
-        points.forEach(p => {
+        [{v: "1", y: -height}, {v: "0", y: 0}, {v: "-1", y: height}].forEach(p => {
             ctx.beginPath();
             ctx.moveTo(x, centerY + p.y);
             ctx.lineTo(x - 5, centerY + p.y);
@@ -165,33 +181,35 @@
         const startX = 100;
         const pX = startX + (L * 10);
 
-        // --- HORIZONTAL RULER (cm) ---
+        // --- CALIBRATIONS ---
         ctx.strokeStyle = "#444";
         ctx.fillStyle = "#888";
-        ctx.lineWidth = 1;
         ctx.font = "10px monospace";
         ctx.textAlign = "center";
-
         for (let i = 0; i <= 70; i += 10) {
             const tickX = startX + (i * 10);
-            ctx.beginPath();
-            ctx.moveTo(tickX, 235);
-            ctx.lineTo(tickX, 220);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(tickX, 235); ctx.lineTo(tickX, 220); ctx.stroke();
             ctx.fillText(i + "cm", tickX, 210);
         }
 
-        // --- VERTICAL CALIBRATIONS (-1 to 1) ---
-        drawAmplitudeScale(startX - 20, 100, 30); // Top view scale
-        drawAmplitudeScale(startX - 20, 340, 55); // Bottom view scale
+        drawAmplitudeScale(startX - 40, 100, 30);
+        drawAmplitudeScale(startX - 40, 340, 55);
+        drawSpeaker(startX - 15, 100);
+        drawSpeaker(startX - 15, 340);
 
-        // Labels
+        // --- LABELS ---
         ctx.textAlign = "left";
-        ctx.fillStyle = "#666"; ctx.font = "bold 12px sans-serif";
-        ctx.fillText("COMPONENT WAVES (Normalized)", startX, 40);
+        ctx.font = "bold 12px sans-serif";
+        
+        ctx.fillStyle = varColor('--accent');
+        ctx.fillText("INCIDENT WAVE (BLUE)", startX, 30);
+        ctx.fillStyle = "#ff00ff";
+        ctx.fillText("REFLECTED WAVE (PINK)", startX + 170, 30);
+        
+        ctx.fillStyle = "#666";
         ctx.fillText("RESULTANT AMPLITUDE", startX, 255);
 
-        // 2. TOP VIEW (Individual Waves)
+        // 1. TOP VIEW
         ctx.beginPath(); ctx.strokeStyle = "#00f2fe"; ctx.lineWidth = 1.5;
         for(let x=startX; x<=pX; x++) {
             const z = (x-startX)/10;
@@ -208,12 +226,16 @@
         }
         ctx.stroke();
 
-        // 3. BOTTOM VIEW (The Sum)
+        // 2. BOTTOM VIEW
         ctx.strokeStyle = "#333"; ctx.lineWidth = 4;
         ctx.strokeRect(startX, 270, 700, 140);
         
+        // Piston & Label
         ctx.fillStyle = "#ff4757"; 
         ctx.fillRect(pX, 270, 15, 140);
+        ctx.fillStyle = "#ff4757";
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("PISTON", pX - 12, 265);
 
         const alignment = Math.abs(Math.sin(k * L)); 
         
@@ -230,17 +252,14 @@
         if (alignment > 0.95) {
             ctx.strokeStyle = "#00ff88"; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = "#00ff88";
             statusTitle.innerText = "RESONANCE";
-            stateDesc.innerText = "Standing wave peak. Amplitude doubled.";
             statusPanel.classList.add('res-active');
         } else if (alignment < 0.15) {
             ctx.strokeStyle = "#ff3e3e"; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
             statusTitle.innerText = "DESTRUCTIVE CLASH";
-            stateDesc.innerText = "Waves cancel out. Zero amplitude.";
             statusPanel.classList.add('clash-active');
         } else {
             ctx.strokeStyle = "#00f2fe"; ctx.lineWidth = 2;
             statusTitle.innerText = "PARTIAL";
-            stateDesc.innerText = "Phase shift active.";
         }
         ctx.stroke();
         ctx.setLineDash([]); ctx.shadowBlur = 0;
@@ -248,6 +267,11 @@
         if (!isFrozen) time += 0.15;
         requestAnimationFrame(draw);
     }
+    
+    function varColor(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name);
+    }
+
     draw();
 </script>
 </body>
