@@ -1,1 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive Wave Lab</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --panel-bg: #161616;
+            --accent: #00f2fe;
+            --res-color: #00ff88;
+            --clash-color: #ff3e3e;
+        }
 
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background: var(--bg); 
+            color: #fff; 
+            margin: 0;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 10px;
+        }
+
+        .container { 
+            background: var(--panel-bg); 
+            padding: 20px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5); 
+            width: 100%;
+            max-width: 900px; 
+            box-sizing: border-box;
+            border: 1px solid #222;
+        }
+
+        .canvas-wrapper {
+            width: 100%;
+            overflow: hidden;
+            border-radius: 12px;
+            background: #000;
+            margin-bottom: 20px;
+        }
+
+        canvas { 
+            display: block;
+            width: 100%; 
+            height: auto; 
+        }
+
+        .controls { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+        }
+
+        @media (max-width: 768px) {
+            .controls { grid-template-columns: 1fr; }
+            h2 { font-size: 1.2rem; text-align: center; }
+            input[type=range] { height: 25px; }
+        }
+
+        .panel { 
+            background: #222; 
+            padding: 15px; 
+            border-radius: 12px; 
+            border: 1px solid #333; 
+        }
+
+        .label-row { display: flex; justify-content: space-between; font-weight: bold; color: #888; font-size: 0.9rem; }
+        .val { color: var(--accent); font-family: monospace; font-size: 1.3rem; }
+
+        input[type=range] { width: 100%; accent-color: var(--accent); margin: 10px 0; cursor: pointer; }
+        
+        button { 
+            background: #333; color: white; border: none; padding: 12px; 
+            border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; 
+        }
+
+        #statusTitle { margin: 0 0 5px 0; color: var(--accent); font-size: 1.1rem; }
+        #stateDesc { font-size: 0.85rem; color: #aaa; margin: 0; line-height: 1.4; }
+
+        .res-active { border-color: var(--res-color) !important; box-shadow: inset 0 0 10px rgba(0,255,136,0.1); }
+        .clash-active { border-color: var(--clash-color) !important; box-shadow: inset 0 0 10px rgba(255,62,62,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="margin-top:0;">Wave Interference Lab</h2>
+    
+    <div class="canvas-wrapper">
+        <canvas id="waveCanvas"></canvas>
+    </div>
+    
+    <div class="controls">
+        <div class="panel">
+            <div class="label-row"><span>PISTON POSITION</span> <span id="posVal" class="val">14.0</span><span>cm</span></div>
+            <input type="range" id="pSlider" min="0" max="70" value="14" step="0.1">
+            <button id="freezeBtn">FREEZE</button>
+        </div>
+
+        <div id="statusPanel" class="panel">
+            <h3 id="statusTitle">Analyzing...</h3>
+            <p id="stateDesc">Move the slider to find resonance.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('waveCanvas');
+    const ctx = canvas.getContext('2d');
+    const pSlider = document.getElementById('pSlider');
+    const posDisp = document.getElementById('posVal');
+    const statusTitle = document.getElementById('statusTitle');
+    const stateDesc = document.getElementById('stateDesc');
+    const statusPanel = document.getElementById('statusPanel');
+    const freezeBtn = document.getElementById('freezeBtn');
+
+    canvas.width = 900; 
+    canvas.height = 450;
+    
+    let time = 0;
+    let isFrozen = false;
+
+    freezeBtn.onclick = () => {
+        isFrozen = !isFrozen;
+        freezeBtn.innerText = isFrozen ? "RESUME" : "FREEZE";
+        freezeBtn.style.background = isFrozen ? "#00f2fe" : "#333";
+        freezeBtn.style.color = isFrozen ? "#000" : "#fff";
+    };
+
+    function drawAmplitudeScale(x, centerY, height) {
+        ctx.strokeStyle = "#444";
+        ctx.fillStyle = "#888";
+        ctx.lineWidth = 1;
+        ctx.font = "10px monospace";
+        ctx.textAlign = "right";
+
+        // Vertical Line
+        ctx.beginPath();
+        ctx.moveTo(x, centerY - height);
+        ctx.lineTo(x, centerY + height);
+        ctx.stroke();
+
+        // Ticks and Labels
+        const points = [{v: "1", y: -height}, {v: "0", y: 0}, {v: "-1", y: height}];
+        points.forEach(p => {
+            ctx.beginPath();
+            ctx.moveTo(x, centerY + p.y);
+            ctx.lineTo(x - 5, centerY + p.y);
+            ctx.stroke();
+            ctx.fillText(p.v, x - 8, centerY + p.y + 3);
+        });
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const L = parseFloat(pSlider.value);
+        const lambda = 60; 
+        const k = (2 * Math.PI) / lambda;
+        posDisp.innerText = L.toFixed(1);
+
+        const startX = 100;
+        const pX = startX + (L * 10);
+
+        // --- HORIZONTAL RULER (cm) ---
+        ctx.strokeStyle = "#444";
+        ctx.fillStyle = "#888";
+        ctx.lineWidth = 1;
+        ctx.font = "10px monospace";
+        ctx.textAlign = "center";
+
+        for (let i = 0; i <= 70; i += 10) {
+            const tickX = startX + (i * 10);
+            ctx.beginPath();
+            ctx.moveTo(tickX, 235);
+            ctx.lineTo(tickX, 220);
+            ctx.stroke();
+            ctx.fillText(i + "cm", tickX, 210);
+        }
+
+        // --- VERTICAL CALIBRATIONS (-1 to 1) ---
+        drawAmplitudeScale(startX - 20, 100, 30); // Top view scale
+        drawAmplitudeScale(startX - 20, 340, 55); // Bottom view scale
+
+        // Labels
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#666"; ctx.font = "bold 12px sans-serif";
+        ctx.fillText("COMPONENT WAVES (Normalized)", startX, 40);
+        ctx.fillText("RESULTANT AMPLITUDE", startX, 255);
+
+        // 2. TOP VIEW (Individual Waves)
+        ctx.beginPath(); ctx.strokeStyle = "#00f2fe"; ctx.lineWidth = 1.5;
+        for(let x=startX; x<=pX; x++) {
+            const z = (x-startX)/10;
+            const y = 100 + Math.sin(k*z - time) * 30;
+            x === startX ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+
+        ctx.beginPath(); ctx.strokeStyle = "#ff00ff";
+        for(let x=startX; x<=pX; x++) {
+            const z = (x-startX)/10;
+            const y = 100 + (-Math.sin(k*(2*L - z) - time)) * 30;
+            x === startX ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+
+        // 3. BOTTOM VIEW (The Sum)
+        ctx.strokeStyle = "#333"; ctx.lineWidth = 4;
+        ctx.strokeRect(startX, 270, 700, 140);
+        
+        ctx.fillStyle = "#ff4757"; 
+        ctx.fillRect(pX, 270, 15, 140);
+
+        const alignment = Math.abs(Math.sin(k * L)); 
+        
+        ctx.beginPath();
+        for(let x=startX; x<=pX; x++) {
+            const z = (x-startX)/10;
+            const y1 = Math.sin(k*z - time);
+            const y2 = -Math.sin(k*(2*L - z) - time);
+            const sumY = 340 + (y1 + y2) * 55;
+            x === startX ? ctx.moveTo(x, sumY) : ctx.lineTo(x, sumY);
+        }
+
+        statusPanel.classList.remove('res-active', 'clash-active');
+        if (alignment > 0.95) {
+            ctx.strokeStyle = "#00ff88"; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = "#00ff88";
+            statusTitle.innerText = "RESONANCE";
+            stateDesc.innerText = "Standing wave peak. Amplitude doubled.";
+            statusPanel.classList.add('res-active');
+        } else if (alignment < 0.15) {
+            ctx.strokeStyle = "#ff3e3e"; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+            statusTitle.innerText = "DESTRUCTIVE CLASH";
+            stateDesc.innerText = "Waves cancel out. Zero amplitude.";
+            statusPanel.classList.add('clash-active');
+        } else {
+            ctx.strokeStyle = "#00f2fe"; ctx.lineWidth = 2;
+            statusTitle.innerText = "PARTIAL";
+            stateDesc.innerText = "Phase shift active.";
+        }
+        ctx.stroke();
+        ctx.setLineDash([]); ctx.shadowBlur = 0;
+
+        if (!isFrozen) time += 0.15;
+        requestAnimationFrame(draw);
+    }
+    draw();
+</script>
+</body>
+</html>
